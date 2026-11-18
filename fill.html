@@ -35,11 +35,11 @@
   .card { background: var(--card); border-radius: 22px; padding: 18px; margin-bottom: 14px; }
   label.t { display: block; font-size: 14px; font-weight: 700; color: var(--subtle); margin: 0 0 8px; }
   .field + label.t { margin-top: 18px; }
-  input[type=text], select {
+  input[type=text], input[type=tel], select {
     width: 100%; font: inherit; font-size: 17px; color: var(--ink); background: var(--field);
     border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; outline: none; -webkit-appearance: none; appearance: none;
   }
-  input[type=text]:focus, select:focus { border-color: var(--berry); }
+  input[type=text]:focus, input[type=tel]:focus, select:focus { border-color: var(--berry); }
   .row { display: flex; gap: 10px; }
   .row > * { flex: 1; }
   .seg { display: flex; background: var(--field); border: 1.5px solid var(--line); border-radius: 14px; padding: 4px; }
@@ -90,6 +90,11 @@
     <div id="yearBox" style="display:none; margin-top:10px">
       <select id="year" aria-label="出世年份"></select>
     </div>
+
+    <div class="field"></div>
+    <label class="t" for="phone">你嘅WhatsApp電話（選填）</label>
+    <input type="tel" id="phone" maxlength="20" placeholder="例如：9123 4567" autocomplete="tel" inputmode="tel">
+    <div class="hint">填咗佢一撳就可以WhatsApp你講生日快樂；唔想俾就留空。住外國已經幫你入咗國碼，唔啱可以改。</div>
 
     <div class="hint" id="tzHint"></div>
     <div class="err" id="err"></div>
@@ -178,6 +183,22 @@
   // 朋友部電話嘅時區：等佢喺外國都可以跟佢嗰邊12點
   var tz = '';
   try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  // 住外國：電話格預設幫佢入咗國碼（香港8個數字app會自己加+852）
+  var codes = {
+    'Asia/Macau':'853','Asia/Taipei':'886','Asia/Shanghai':'86','Asia/Tokyo':'81','Asia/Seoul':'82',
+    'Asia/Singapore':'65','Asia/Kuala_Lumpur':'60','Asia/Bangkok':'66','Asia/Manila':'63',
+    'Asia/Ho_Chi_Minh':'84','Asia/Kolkata':'91','Asia/Jakarta':'62','Asia/Dubai':'971',
+    'Europe/London':'44','Europe/Dublin':'353','Europe/Paris':'33','Europe/Berlin':'49',
+    'Europe/Amsterdam':'31','Europe/Brussels':'32','Europe/Zurich':'41','Europe/Rome':'39',
+    'Europe/Madrid':'34','Europe/Stockholm':'46','Europe/Oslo':'47','Europe/Copenhagen':'45',
+    'Europe/Vienna':'43','Pacific/Auckland':'64','Pacific/Honolulu':'1'
+  };
+  var code = codes[tz] || (/^Australia\//.test(tz) ? '61' : '') ||
+    (/^America\/(New_York|Chicago|Denver|Phoenix|Los_Angeles|Anchorage|Detroit|Toronto|Vancouver|Edmonton|Winnipeg|Halifax|Regina|St_Johns)$/.test(tz) ? '1' : '');
+  var phoneBox = document.getElementById('phone');
+  var prefix = code ? '+' + code + ' ' : '';
+  if (prefix && !phoneBox.value) phoneBox.value = prefix;
+
   if (tz) {
     document.getElementById('tzHint').textContent = '🌏 會一齊send埋你而家嘅地區（' + tz.replace(/_/g, ' ') + '），等佢跟你嗰邊12點同你講。';
   }
@@ -192,6 +213,17 @@
     var q = 'name=' + encodeURIComponent(name) + '&cal=' + (isLunar ? 'lunar' : 'solar') + '&m=' + m + '&d=' + d;
     if (withYear) q += '&y=' + yearSel.value;
     if (tz) q += '&tz=' + encodeURIComponent(tz);
+    // 電話：淨係留數字、+ 同空格；8至15個數字先當有填
+    var phone = document.getElementById('phone').value.replace(/[^0-9+ ]/g, '').trim().slice(0, 20);
+    var phoneDigits = phone.replace(/[^0-9]/g, '').length;
+    // 淨係得預設國碼（冇再打電話）：當冇填
+    if (phone.charAt(0) === '+' && phoneDigits <= 4) { phone = ''; phoneDigits = 0; }
+    if (phone && (phoneDigits < 8 || phoneDigits > 15)) {
+      err.textContent = '電話好似唔啱，檢查吓或者留空';
+      document.getElementById('phone').focus();
+      return null;
+    }
+    if (phone) q += '&p=' + encodeURIComponent(phone);
     var link = 'lobestbirthday://add?' + q;
     var dateText = isLunar ? ('農曆' + lunarMonths[m - 1] + lunarDay(d)) : (m + '月' + d + '日');
     if (withYear) dateText = yearSel.value + '年' + dateText;
